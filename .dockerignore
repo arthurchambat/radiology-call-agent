@@ -1,0 +1,7 @@
+.env
+.venv
+.vercel
+.vercel-cli-home
+__pycache__
+*.pyc
+.DS_Store
