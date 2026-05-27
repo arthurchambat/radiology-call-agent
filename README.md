@@ -15,6 +15,7 @@ Le flux est documente ici :
 
 - `docs/flux-appel.md`
 - `docs/site-choice.md`
+- `docs/demo-jour-j.md`
 
 ## Tools
 
@@ -80,6 +81,26 @@ curl -X POST http://localhost:8000/tools/get_available_slots \
   -d '{"visit_motive_id": "302", "start_date": "2026-05-28", "days": 14}'
 ```
 
+## Run-through de demo
+
+Pour tester l'API publique sans creer de rendez-vous :
+
+```bash
+python3 scripts/run_demo_tests.py
+```
+
+Pour tester le parcours complet en recette Enovacom, avec creation puis annulation immediate d'un rendez-vous de test :
+
+```bash
+python3 scripts/run_demo_tests.py --e2e
+```
+
+Le deroule de presentation est documente dans :
+
+```txt
+docs/demo-jour-j.md
+```
+
 ## Deploiement
 
 Le projet est pret pour un deploiement Vercel via :
@@ -99,10 +120,10 @@ ENOVACOM_SITE_ID=5
 Une fois deploye, les memes endpoints sont disponibles sur l'URL publique :
 
 ```txt
-https://<project>.vercel.app/tools/search_exam
-https://<project>.vercel.app/tools/get_available_slots
-https://<project>.vercel.app/tools/create_appointment
-https://<project>.vercel.app/tools/cancel_appointment
+https://radiology-call-agent.vercel.app/tools/search_exam
+https://radiology-call-agent.vercel.app/tools/get_available_slots
+https://radiology-call-agent.vercel.app/tools/create_appointment
+https://radiology-call-agent.vercel.app/tools/cancel_appointment
 ```
 
 Le projet contient aussi un `Dockerfile` si on choisit finalement une plateforme Docker-compatible comme Cloud Run, Render ou Railway.
