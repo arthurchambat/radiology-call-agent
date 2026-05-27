@@ -16,6 +16,7 @@ Le flux est documente ici :
 - `docs/flux-appel.md`
 - `docs/site-choice.md`
 - `docs/demo-jour-j.md`
+- `docs/rounded-agent.md`
 
 ## Tools
 
