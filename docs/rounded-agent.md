@@ -74,6 +74,17 @@ Si tu n'es pas certain, transfere a un humain.
 
 ## Tools a configurer
 
+Selon la documentation Rounded, un custom tool doit avoir :
+
+- un nom clair ;
+- une description ;
+- une phrase de patience pendant l'appel API ;
+- des parametres de tool ;
+- les reglages d'appel API ;
+- eventuellement un mapping de reponse.
+
+Les reponses de nos tools contiennent aussi un champ `instructions` a la racine. Rounded peut utiliser ce champ pour donner a l'agent une consigne simple apres l'appel API, sans l'obliger a interpreter tout le JSON brut.
+
 ### 1. `search_exam`
 
 URL :
@@ -106,7 +117,8 @@ Schema de sortie :
       "name": "IRM GENOU SANS IV",
       "category": "IRM MEMBRE INF"
     }
-  ]
+  ],
+  "instructions": "Examens trouves : IRM GENOU SANS IV (id 302). Si plusieurs options sont possibles, demander une precision au patient."
 }
 ```
 
@@ -141,7 +153,8 @@ Schema de sortie :
 {
   "found": false,
   "ambiguous": true,
-  "patients": []
+  "patients": [],
+  "instructions": "Plusieurs patients possibles : demander une verification supplementaire ou transferer a un humain."
 }
 ```
 
@@ -190,7 +203,8 @@ Schema de sortie :
       "location_id": "26",
       "site_id": "5"
     }
-  ]
+  ],
+  "instructions": "Proposer ces creneaux au patient. Ne creer le rendez-vous qu'apres confirmation explicite."
 }
 ```
 
@@ -245,7 +259,8 @@ Schema de sortie :
 ```json
 {
   "appointment_created": true,
-  "appointment_id": 44097
+  "appointment_id": 44097,
+  "instructions": "Le rendez-vous est cree. Recapituler l'examen, la date et l'heure."
 }
 ```
 
@@ -275,7 +290,8 @@ Schema de sortie :
 
 ```json
 {
-  "cancelled": true
+  "cancelled": true,
+  "instructions": "Si cancelled=true, confirmer au patient que le rendez-vous est annule."
 }
 ```
 

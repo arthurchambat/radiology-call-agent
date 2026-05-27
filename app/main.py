@@ -98,6 +98,22 @@ def parse_api_date(value: str) -> Optional[datetime]:
     return None
 
 
+def summarize_exam_matches(matches: list[dict[str, Any]]) -> str:
+    if not matches:
+        return "Aucun examen correspondant n'a ete trouve. Demander une precision ou transferer a un humain."
+
+    names = [f"{item['name']} (id {item['visit_motive_id']})" for item in matches[:3]]
+    return "Examens trouves : " + "; ".join(names) + ". Si plusieurs options sont possibles, demander une precision au patient."
+
+
+def summarize_slots(slots: list[dict[str, Any]]) -> str:
+    if not slots:
+        return "Aucun creneau disponible sur cette periode. Proposer une autre periode ou transferer a un humain."
+
+    options = [f"{slot['start']} (praticien {slot['practitioner_id']})" for slot in slots[:3]]
+    return "Proposer ces creneaux au patient : " + "; ".join(options) + ". Ne creer le rendez-vous qu'apres confirmation explicite."
+
+
 def call_enovacom(command: str, **params: Any) -> dict[str, Any]:
     try:
         return client.call(command, **params)
@@ -144,7 +160,11 @@ def search_exam(payload: SearchExamRequest) -> dict[str, Any]:
                 }
             )
 
-    return {"matches": matches[:5]}
+    selected_matches = matches[:5]
+    return {
+        "matches": selected_matches,
+        "instructions": summarize_exam_matches(selected_matches),
+    }
 
 
 @app.post("/tools/find_patient")
@@ -163,6 +183,13 @@ def find_patient(payload: FindPatientRequest) -> dict[str, Any]:
         "found": len(patients) == 1,
         "ambiguous": len(patients) > 1,
         "patients": patients,
+        "instructions": (
+            "Patient unique trouve : confirmer son identite avant de continuer."
+            if len(patients) == 1
+            else "Plusieurs patients possibles : demander une verification supplementaire ou transferer a un humain."
+            if len(patients) > 1
+            else "Aucun patient trouve : collecter les informations patient necessaires."
+        ),
     }
 
 
@@ -203,7 +230,11 @@ def get_available_slots(payload: AvailableSlotsRequest) -> dict[str, Any]:
             }
         )
 
-    return {"slots": slots[:10]}
+    selected_slots = slots[:10]
+    return {
+        "slots": selected_slots,
+        "instructions": summarize_slots(selected_slots),
+    }
 
 
 @app.post("/tools/create_appointment")
@@ -214,6 +245,7 @@ def create_appointment(payload: CreateAppointmentRequest) -> dict[str, Any]:
             "appointment_created": False,
             "reason": reason,
             "next_action": "transfer",
+            "instructions": "Ne pas creer le rendez-vous. Informer le patient que sa situation doit etre verifiee par l'equipe du centre et transferer a un humain.",
         }
 
     response = call_enovacom(
@@ -232,6 +264,7 @@ def create_appointment(payload: CreateAppointmentRequest) -> dict[str, Any]:
     return {
         "appointment_created": bool(response.get("appointment_created")),
         "appointment_id": response.get("appointment_id"),
+        "instructions": "Le rendez-vous est cree. Recapituler l'examen, la date, l'heure et rappeler que l'agent ne donne pas d'information medicale.",
         "raw": response,
     }
 
@@ -251,5 +284,6 @@ def cancel_appointment(payload: CancelAppointmentRequest) -> dict[str, Any]:
             or response.get("deleted")
             or response.get("success")
         ),
+        "instructions": "Si cancelled=true, confirmer au patient que le rendez-vous est annule. Sinon, transferer a un humain.",
         "raw": response,
     }

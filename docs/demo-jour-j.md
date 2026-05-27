@@ -183,6 +183,7 @@ Points a dire simplement si on te demande :
 - le matching d'examen est volontairement simple ;
 - Gemini n'est pas utilise dans les tools, car les tools doivent rester deterministes ;
 - la partie conversationnelle est portee par Rounded ;
+- les tools retournent aussi un champ `instructions` pour guider l'agent apres chaque appel API ;
 - en production, on ajouterait authentification, logs structures et monitoring ;
 - en production, on renforcerait l'identification patient avant toute action sensible.
 
