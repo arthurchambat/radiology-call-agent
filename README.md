@@ -30,6 +30,7 @@ Endpoints exposes :
 - `POST /tools/find_patient`
 - `POST /tools/get_available_slots`
 - `POST /tools/create_appointment`
+- `POST /tools/create_appointment_from_text`
 - `POST /tools/cancel_appointment`
 
 ## Configuration

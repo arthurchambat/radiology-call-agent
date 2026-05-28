@@ -25,9 +25,17 @@ ENOVACOM_BASE_URL = os.getenv(
 )
 ENOVACOM_TOKEN = os.getenv("ENOVACOM_TOKEN")
 ENOVACOM_SITE_ID = os.getenv("ENOVACOM_SITE_ID")
+GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
+GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-2.5-flash")
 
 
 def require_token() -> str:
     if not ENOVACOM_TOKEN:
         raise RuntimeError("ENOVACOM_TOKEN is missing")
     return ENOVACOM_TOKEN
+
+
+def require_gemini_key() -> str:
+    if not GEMINI_API_KEY:
+        raise RuntimeError("GEMINI_API_KEY is missing")
+    return GEMINI_API_KEY

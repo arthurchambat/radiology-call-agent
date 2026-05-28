@@ -85,6 +85,47 @@ Selon la documentation Rounded, un custom tool doit avoir :
 
 Les reponses de nos tools contiennent aussi un champ `instructions` a la racine. Rounded peut utiliser ce champ pour donner a l'agent une consigne simple apres l'appel API, sans l'obliger a interpreter tout le JSON brut.
 
+## Option simplifiee avec Gemini
+
+Pour eviter de configurer beaucoup de parametres plats dans Rounded, un tool simplifie existe aussi :
+
+```txt
+POST https://radiology-call-agent.vercel.app/tools/create_appointment_from_text
+```
+
+Ce tool prend un seul parametre texte, puis utilise Gemini cote backend pour structurer les champs attendus par Enovacom.
+
+Il est utile pour le bonus Rounded, car l'agent peut envoyer un resume complet apres confirmation explicite du patient.
+
+Parametre Rounded :
+
+```txt
+request_text
+Type: string
+Description: Resume complet du rendez-vous confirme par le patient, incluant examen, visit_motive_id, creneau choisi, praticien, salle, patient, date de naissance, telephone et reponses aux contre-indications.
+Required: yes
+```
+
+URL :
+
+```txt
+POST https://radiology-call-agent.vercel.app/tools/create_appointment_from_text
+```
+
+Exemple de body :
+
+```json
+{
+  "request_text": "Le patient confirme un rendez-vous pour IRM GENOU SANS IV, visit_motive_id 302, le 2026-05-28 12:00:00, duree 20 minutes, practitioner_id 3, location_id 26. Patient : Jean Dupont, ne le 1990-01-01, telephone 0600000000, nouveau patient donc patient_id 0. Categorie IRM. Pas de pacemaker, pas d'implant ferromagnetique."
+}
+```
+
+Regle importante :
+
+```txt
+N'appeler ce tool qu'apres confirmation explicite du patient.
+```
+
 ### 1. `search_exam`
 
 URL :

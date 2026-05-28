@@ -1,5 +1,6 @@
 from datetime import date, datetime, timedelta
 from typing import Any, Optional
+import json
 import re
 import unicodedata
 
@@ -8,6 +9,7 @@ from pydantic import BaseModel, Field
 
 from app.config import ENOVACOM_SITE_ID
 from app.enovacom import EnovacomError, client
+from app.gemini import structure_booking_request
 from app.rules import has_contraindication
 
 app = FastAPI(title="Rounded radiology tools")
@@ -70,6 +72,10 @@ class CreateAppointmentRequest(BaseModel):
 
 class CancelAppointmentRequest(BaseModel):
     appointment_id: str
+
+
+class CreateAppointmentFromTextRequest(BaseModel):
+    request_text: str
 
 
 def normalize(value: str) -> str:
@@ -304,6 +310,22 @@ def model_to_dict(model: BaseModel) -> dict[str, Any]:
     return model.dict()
 
 
+def missing_booking_fields(data: dict[str, Any]) -> list[str]:
+    required = [
+        "visit_motive_id",
+        "start",
+        "duration_minutes",
+        "practitioner_id",
+        "location_id",
+        "first_name",
+        "last_name",
+        "birth_date",
+        "phone",
+        "exam_category",
+    ]
+    return [field for field in required if not data.get(field)]
+
+
 def call_enovacom(command: str, **params: Any) -> dict[str, Any]:
     try:
         return client.call(command, **params)
@@ -466,6 +488,28 @@ def create_appointment(payload: CreateAppointmentRequest) -> dict[str, Any]:
         "instructions": "Le rendez-vous est cree. Recapituler l'examen, la date, l'heure et rappeler que l'agent ne donne pas d'information medicale.",
         "raw": response,
     }
+
+
+@app.post("/tools/create_appointment_from_text")
+def create_appointment_from_text(payload: CreateAppointmentFromTextRequest) -> dict[str, Any]:
+    try:
+        structured = structure_booking_request(payload.request_text)
+    except (EnovacomError, RuntimeError, json.JSONDecodeError) as error:
+        raise HTTPException(status_code=502, detail=str(error)) from error
+
+    missing = missing_booking_fields(structured)
+    if missing:
+        return {
+            "appointment_created": False,
+            "missing_fields": missing,
+            "structured": structured,
+            "instructions": "Il manque des informations pour creer le rendez-vous. Demander ces informations au patient puis rappeler le tool.",
+        }
+
+    normalized_payload = CreateAppointmentRequest(**structured)
+    result = create_appointment(normalized_payload)
+    result["structured"] = structured
+    return result
 
 
 @app.post("/tools/cancel_appointment")

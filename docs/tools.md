@@ -252,3 +252,38 @@ Exemple :
 ```
 
 Dans le doute, l'agent transfere a un humain.
+
+## 6. `create_appointment_from_text`
+
+### Role
+
+Creer un rendez-vous a partir d'un resume texte complet.
+
+Ce tool est surtout utile pour Rounded, car il evite de configurer beaucoup de parametres plats dans l'interface.
+
+Il utilise Gemini cote backend pour extraire les champs structures, puis appelle la meme logique que `create_appointment`.
+
+### Entree
+
+```json
+{
+  "request_text": "Le patient confirme un rendez-vous pour IRM GENOU SANS IV, visit_motive_id 302, le 2026-05-28 12:00:00, duree 20 minutes, practitioner_id 3, location_id 26. Patient : Jean Dupont, ne le 1990-01-01, telephone 0600000000, nouveau patient donc patient_id 0. Categorie IRM. Pas de pacemaker, pas d'implant ferromagnetique."
+}
+```
+
+### Sortie
+
+```json
+{
+  "appointment_created": true,
+  "appointment_id": 44100,
+  "instructions": "Le rendez-vous est cree. Recapituler l'examen, la date, l'heure et rappeler que l'agent ne donne pas d'information medicale."
+}
+```
+
+### Variables d'environnement
+
+```txt
+GEMINI_API_KEY
+GEMINI_MODEL=gemini-2.5-flash
+```
