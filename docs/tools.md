@@ -34,6 +34,27 @@ Exemple :
 }
 ```
 
+Pour faciliter la configuration Rounded, le endpoint accepte aussi une entree plate :
+
+```json
+{
+  "visit_motive_id": "123",
+  "start": "2026-05-28 09:30:00",
+  "duration_minutes": "20",
+  "practitioner_id": "4",
+  "location_id": "8",
+  "patient_id": "0",
+  "first_name": "Jean",
+  "last_name": "Dupont",
+  "birth_date": "19800131",
+  "gender": "1",
+  "phone": "0612345678",
+  "exam_category": "IRM",
+  "pacemaker": false,
+  "ferromagnetic_implant": false
+}
+```
+
 ### Sortie
 
 ```json

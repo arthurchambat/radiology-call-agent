@@ -190,6 +190,52 @@ Schema d'entree :
 }
 ```
 
+Pour Rounded, la configuration la plus simple est d'utiliser des parametres plats plutot que des objets imbriques. Le endpoint accepte donc aussi :
+
+```json
+{
+  "visit_motive_id": "302",
+  "start": "2026-05-28 09:30:00",
+  "duration_minutes": "20",
+  "practitioner_id": "3",
+  "location_id": "26",
+  "patient_id": "0",
+  "first_name": "Jean",
+  "last_name": "Dupont",
+  "birth_date": "19900101",
+  "gender": "1",
+  "phone": "0600000000",
+  "exam_category": "IRM",
+  "pacemaker": false,
+  "ferromagnetic_implant": false,
+  "pregnant": false,
+  "iodine_allergy": false,
+  "renal_failure": false
+}
+```
+
+Parametres recommandes dans Rounded :
+
+```txt
+visit_motive_id      string   id de l'examen choisi
+start                string   horaire du creneau choisi, ex: 2026-05-28 09:30:00
+duration_minutes     string   duree du creneau, ex: 20
+practitioner_id      string   id du praticien retourne par get_available_slots
+location_id          string   id de salle retourne par get_available_slots
+patient_id           string   utiliser "0" si nouveau patient
+first_name           string   prenom patient
+last_name            string   nom patient
+birth_date           string   date de naissance, idealement YYYYMMDD
+gender               string   "1" par defaut si non precise
+phone                string   numero de telephone
+exam_category        string   categorie examen, ex: IRM
+pacemaker            boolean  true si le patient declare un pacemaker
+ferromagnetic_implant boolean true si implant ferromagnetique
+pregnant             boolean  true si grossesse
+iodine_allergy       boolean  true si allergie iode
+renal_failure        boolean  true si insuffisance renale
+```
+
 Le parametre `start_date` accepte plusieurs formats pour faciliter l'appel depuis Rounded :
 
 ```txt

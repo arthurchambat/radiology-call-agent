@@ -46,11 +46,26 @@ class Patient(BaseModel):
 
 class CreateAppointmentRequest(BaseModel):
     visit_motive_id: str
-    slot: Slot
+    slot: Optional[Slot] = None
     patient_id: str = "0"
-    patient: Patient
+    patient: Optional[Patient] = None
     contraindications: dict[str, Any] = Field(default_factory=dict)
     exam_category: Optional[str] = None
+    start: Optional[str] = None
+    duration_minutes: Optional[str] = None
+    practitioner_id: Optional[str] = None
+    location_id: Optional[str] = None
+    site_id: Optional[str] = None
+    first_name: Optional[str] = None
+    last_name: Optional[str] = None
+    birth_date: Optional[str] = None
+    gender: str = "1"
+    phone: Optional[str] = None
+    pacemaker: Optional[bool] = None
+    ferromagnetic_implant: Optional[bool] = None
+    pregnant: Optional[bool] = None
+    iodine_allergy: Optional[bool] = None
+    renal_failure: Optional[bool] = None
 
 
 class CancelAppointmentRequest(BaseModel):
@@ -213,6 +228,82 @@ def summarize_slots(slots: list[dict[str, Any]]) -> str:
     return "Proposer ces creneaux au patient : " + "; ".join(options) + ". Ne creer le rendez-vous qu'apres confirmation explicite."
 
 
+def normalize_birth_date(value: str) -> str:
+    text = value.strip()
+    for date_format in ("%Y%m%d", "%Y-%m-%d", "%d/%m/%Y", "%d-%m-%Y", "%d.%m.%Y"):
+        try:
+            return datetime.strptime(text, date_format).strftime("%Y%m%d")
+        except ValueError:
+            continue
+    return text
+
+
+def build_slot(payload: CreateAppointmentRequest) -> Slot:
+    if payload.slot:
+        return payload.slot
+
+    missing = [
+        name
+        for name, value in {
+            "start": payload.start,
+            "duration_minutes": payload.duration_minutes,
+            "practitioner_id": payload.practitioner_id,
+        }.items()
+        if not value
+    ]
+    if missing:
+        raise HTTPException(status_code=422, detail=f"Missing slot fields: {', '.join(missing)}")
+
+    return Slot(
+        start=payload.start or "",
+        duration_minutes=str(payload.duration_minutes),
+        practitioner_id=str(payload.practitioner_id),
+        location_id=payload.location_id,
+        site_id=payload.site_id,
+    )
+
+
+def build_patient(payload: CreateAppointmentRequest) -> Patient:
+    if payload.patient:
+        return payload.patient
+
+    missing = [
+        name
+        for name, value in {
+            "first_name": payload.first_name,
+            "last_name": payload.last_name,
+            "birth_date": payload.birth_date,
+            "phone": payload.phone,
+        }.items()
+        if not value
+    ]
+    if missing:
+        raise HTTPException(status_code=422, detail=f"Missing patient fields: {', '.join(missing)}")
+
+    return Patient(
+        first_name=payload.first_name or "",
+        last_name=payload.last_name or "",
+        birth_date=normalize_birth_date(payload.birth_date or ""),
+        gender=payload.gender,
+        phone=payload.phone or "",
+    )
+
+
+def build_contraindications(payload: CreateAppointmentRequest) -> dict[str, Any]:
+    answers = dict(payload.contraindications)
+    for field in ["pacemaker", "ferromagnetic_implant", "pregnant", "iodine_allergy", "renal_failure"]:
+        value = getattr(payload, field)
+        if value is not None:
+            answers[field] = value
+    return answers
+
+
+def model_to_dict(model: BaseModel) -> dict[str, Any]:
+    if hasattr(model, "model_dump"):
+        return model.model_dump()
+    return model.dict()
+
+
 def call_enovacom(command: str, **params: Any) -> dict[str, Any]:
     try:
         return client.call(command, **params)
@@ -343,7 +434,11 @@ def get_available_slots(payload: AvailableSlotsRequest) -> dict[str, Any]:
 
 @app.post("/tools/create_appointment")
 def create_appointment(payload: CreateAppointmentRequest) -> dict[str, Any]:
-    blocked, reason = has_contraindication(payload.exam_category, payload.contraindications)
+    slot = build_slot(payload)
+    patient = build_patient(payload)
+    contraindications = build_contraindications(payload)
+
+    blocked, reason = has_contraindication(payload.exam_category, contraindications)
     if blocked:
         return {
             "appointment_created": False,
@@ -356,13 +451,13 @@ def create_appointment(payload: CreateAppointmentRequest) -> dict[str, Any]:
         "add_rdv",
         visit_motive_id=payload.visit_motive_id,
         id_examen=payload.visit_motive_id,
-        rdv_datetime=payload.slot.start,
-        rdv_duration_minute=payload.slot.duration_minutes,
+        rdv_datetime=slot.start,
+        rdv_duration_minute=slot.duration_minutes,
         id_vacation="0",
-        id_ps=payload.slot.practitioner_id,
+        id_ps=slot.practitioner_id,
         patient_id=payload.patient_id,
         sending_application="rounded",
-        patient=payload.patient.dict(),
+        patient=model_to_dict(patient),
     )
 
     return {
