@@ -146,6 +146,14 @@ curl -s -X POST https://radiology-call-agent.vercel.app/tools/get_available_slot
   -d '{"visit_motive_id":"302","start_date":"2026-05-28","days":14}'
 ```
 
+Le meme tool accepte aussi une date plus naturelle :
+
+```bash
+curl -s -X POST https://radiology-call-agent.vercel.app/tools/get_available_slots \
+  -H "Content-Type: application/json" \
+  -d '{"visit_motive_id":"302","start_date":"demain","days":14}'
+```
+
 Refus pour contre-indication :
 
 ```bash

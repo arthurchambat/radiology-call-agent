@@ -1,6 +1,7 @@
-from datetime import datetime, timedelta
+from datetime import date, datetime, timedelta
 from typing import Any, Optional
 import re
+import unicodedata
 
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel, Field
@@ -60,6 +61,12 @@ def normalize(value: str) -> str:
     return re.sub(r"\s+", " ", value.lower()).strip()
 
 
+def normalize_date_text(value: str) -> str:
+    normalized = unicodedata.normalize("NFKD", value.lower())
+    without_accents = "".join(char for char in normalized if not unicodedata.combining(char))
+    return re.sub(r"\s+", " ", without_accents.replace("'", " ")).strip()
+
+
 def get_value(item: dict[str, Any], *keys: str) -> Any:
     for key in keys:
         if key in item:
@@ -96,6 +103,98 @@ def parse_api_date(value: str) -> Optional[datetime]:
         except ValueError:
             continue
     return None
+
+
+def parse_start_date(value: str) -> date:
+    text = normalize_date_text(value)
+    today = date.today()
+
+    relative_dates = {
+        "aujourd hui": today,
+        "aujourdhui": today,
+        "today": today,
+        "demain": today + timedelta(days=1),
+        "tomorrow": today + timedelta(days=1),
+        "apres demain": today + timedelta(days=2),
+        "apres-demain": today + timedelta(days=2),
+    }
+    if text in relative_dates:
+        return relative_dates[text]
+
+    days_match = re.search(r"dans (\d+) jours?", text)
+    if days_match:
+        return today + timedelta(days=int(days_match.group(1)))
+
+    weekday_indexes = {
+        "lundi": 0,
+        "mardi": 1,
+        "mercredi": 2,
+        "jeudi": 3,
+        "vendredi": 4,
+        "samedi": 5,
+        "dimanche": 6,
+    }
+    for weekday_name, weekday_index in weekday_indexes.items():
+        if weekday_name in text:
+            delta = (weekday_index - today.weekday()) % 7
+            if "prochain" in text and delta == 0:
+                delta = 7
+            return today + timedelta(days=delta)
+
+    month_indexes = {
+        "janvier": 1,
+        "fevrier": 2,
+        "mars": 3,
+        "avril": 4,
+        "mai": 5,
+        "juin": 6,
+        "juillet": 7,
+        "aout": 8,
+        "septembre": 9,
+        "octobre": 10,
+        "novembre": 11,
+        "decembre": 12,
+    }
+    month_pattern = r"(\d{1,2})\s+(" + "|".join(month_indexes.keys()) + r")(?:\s+(\d{4}))?"
+    month_match = re.search(month_pattern, text)
+    if month_match:
+        day = int(month_match.group(1))
+        month = month_indexes[month_match.group(2)]
+        year = int(month_match.group(3) or today.year)
+        parsed = date(year, month, day)
+        if not month_match.group(3) and parsed < today:
+            parsed = date(year + 1, month, day)
+        return parsed
+
+    date_formats = [
+        "%Y-%m-%d",
+        "%d/%m/%Y",
+        "%d-%m-%Y",
+        "%d.%m.%Y",
+        "%d/%m/%y",
+        "%d-%m-%y",
+        "%Y%m%d",
+        "%Y-%m-%dT%H:%M:%S",
+        "%Y-%m-%dT%H:%M:%S.%fZ",
+    ]
+    for date_format in date_formats:
+        try:
+            return datetime.strptime(value.strip(), date_format).date()
+        except ValueError:
+            continue
+
+    short_date_match = re.search(r"\b(\d{1,2})[/-](\d{1,2})\b", text)
+    if short_date_match:
+        day = int(short_date_match.group(1))
+        month = int(short_date_match.group(2))
+        parsed = date(today.year, month, day)
+        if parsed < today:
+            parsed = date(today.year + 1, month, day)
+        return parsed
+
+    raise ValueError(
+        "start_date must be a date like YYYY-MM-DD, DD/MM/YYYY, 'demain', 'apres-demain', a French weekday, or '28 mai 2026'"
+    )
 
 
 def summarize_exam_matches(matches: list[dict[str, Any]]) -> str:
@@ -195,7 +294,12 @@ def find_patient(payload: FindPatientRequest) -> dict[str, Any]:
 
 @app.post("/tools/get_available_slots")
 def get_available_slots(payload: AvailableSlotsRequest) -> dict[str, Any]:
-    start = datetime.strptime(payload.start_date, "%Y-%m-%d")
+    try:
+        start_day = parse_start_date(payload.start_date)
+    except ValueError as error:
+        raise HTTPException(status_code=422, detail=str(error)) from error
+
+    start = datetime.combine(start_day, datetime.min.time())
     stop = start + timedelta(days=payload.days)
 
     response = call_enovacom(

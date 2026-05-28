@@ -113,6 +113,8 @@ Le tool filtre les resultats pour ne garder que les creneaux du site choisi.
 }
 ```
 
+`start_date` accepte aussi des formats plus naturels comme `28/05/2026`, `28 mai`, `demain`, `apres-demain`, `lundi prochain` ou `dans 3 jours`.
+
 ### Sortie
 
 ```json

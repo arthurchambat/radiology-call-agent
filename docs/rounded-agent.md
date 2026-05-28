@@ -190,6 +190,24 @@ Schema d'entree :
 }
 ```
 
+Le parametre `start_date` accepte plusieurs formats pour faciliter l'appel depuis Rounded :
+
+```txt
+2026-05-28
+28/05/2026
+28-05-2026
+28 mai 2026
+28 mai
+aujourd'hui
+demain
+apres-demain
+lundi
+lundi prochain
+dans 3 jours
+```
+
+Si possible, demander quand meme a l'agent de convertir la date au format `YYYY-MM-DD`, mais le tool reste tolerant.
+
 Schema de sortie :
 
 ```json
