@@ -1,70 +1,41 @@
-# Demo jour J
+# Démo jour J
 
-## Objectif de la restitution
+## Message d'ouverture
 
-Montrer que le projet couvre les trois attentes principales :
+> J'ai gardé une approche simple : un flux clair, cinq tools métier, un déploiement public, et un début d'intégration Rounded en bonus.
 
-1. le flux d'appel a ete pense avant le code ;
-2. les tools sont simples, utiles et testables ;
-3. les tools sont deployes sur une URL publique.
+## 1. Question 1 - Flux d'appel
 
-Le fil conducteur a garder pendant la presentation :
-
-> L'agent vocal gere uniquement la prise et l'annulation de rendez-vous. Des qu'une demande devient medicale, ambigue ou hors cadre, il transfere a un humain.
-
-## 1. Presenter le flux d'appel
-
-Fichier a ouvrir :
+Ouvrir :
 
 ```txt
 docs/flux-appel.md
 ```
 
-Message a expliquer :
+À dire :
 
-- le numero appelant est recupere des le debut ;
-- on cherche s'il correspond a un patient existant ;
-- on ne confirme l'identite qu'apres avoir compris la demande ;
-- l'agent ne collecte les informations personnelles que quand c'est necessaire ;
-- l'agent ne fait jamais de medical.
+- l'agent ne fait que prise et annulation de RDV ;
+- tout ce qui est médical est transféré ;
+- le numéro appelant est recherché au début ;
+- l'identité est confirmée seulement quand elle devient nécessaire ;
+- aucun RDV n'est créé sans confirmation explicite.
 
-Ordre du flux de prise de RDV :
+## 2. Question 2 - Tools
 
-```txt
-demande → examen → contre-indications → patient → creneaux → confirmation → creation
-```
-
-Ordre du flux d'annulation :
-
-```txt
-demande → patient → RDV futur → confirmation → annulation
-```
-
-## 2. Presenter le choix du site
-
-Fichier a ouvrir :
-
-```txt
-docs/site-choice.md
-```
-
-Message a expliquer :
-
-- Enovacom expose 5 sites ;
-- j'en ai choisi un seul comme demande dans l'enonce ;
-- le site choisi est `SCM PASTEUR REC1`, `site_id=5` ;
-- c'est celui qui a le plus d'examens et de salles dans la configuration de recette ;
-- tous les tools filtrent les donnees sur ce site.
-
-## 3. Presenter les tools
-
-Fichier a ouvrir :
+Ouvrir :
 
 ```txt
 docs/tools.md
 ```
 
-Tools exposes :
+À dire :
+
+- je n'ai pas wrappé toute l'API Enovacom ;
+- chaque tool correspond à une action utile dans l'appel ;
+- les contre-indications sont déterministes ;
+- les tools retournent `instructions` pour aider Rounded.
+
+Tools principaux :
 
 ```txt
 search_exam
@@ -74,63 +45,47 @@ create_appointment
 cancel_appointment
 ```
 
-Message a expliquer :
+## 3. Question 3 - Déploiement
 
-- je n'ai pas wrappe toute l'API Enovacom ;
-- chaque tool correspond a une action utile dans l'appel ;
-- les regles de contre-indication restent deterministes ;
-- l'agent ne cree ou n'annule jamais sans confirmation explicite.
-
-## 4. Tester l'URL publique
-
-URL de production :
+URL publique :
 
 ```txt
 https://radiology-call-agent.vercel.app
 ```
 
-Test rapide :
+Test simple :
 
 ```bash
 curl https://radiology-call-agent.vercel.app/health
 ```
 
-Resultat attendu :
+Réponse attendue :
 
 ```json
 {"status":"ok"}
 ```
 
-## 5. Lancer le run-through automatique
+## 4. Run-through automatique
 
-Le script suivant teste :
-
-- la sante de l'API ;
-- la recherche d'examen ;
-- les disponibilites ;
-- le refus de creation en cas de contre-indication.
+Sans création de RDV :
 
 ```bash
 python3 scripts/run_demo_tests.py
 ```
 
-Ce test ne cree pas de vrai rendez-vous.
-
-## 6. Lancer le test de bout en bout
-
-Ce test cree un vrai rendez-vous en recette Enovacom, puis l'annule immediatement.
+Avec création puis annulation immédiate en recette :
 
 ```bash
 python3 scripts/run_demo_tests.py --e2e
 ```
 
-A expliquer avant de le lancer :
+À dire avant le `--e2e` :
 
-> Ce test utilise l'environnement de recette. Il cree un patient de test et un rendez-vous de test, puis annule le rendez-vous dans la foulee.
+> Ce test crée un RDV de test dans l'environnement de recette, puis l'annule immédiatement.
 
-## 7. Commandes curl utiles
+## 5. Tests curl utiles
 
-Recherche d'examen :
+Recherche examen :
 
 ```bash
 curl -s -X POST https://radiology-call-agent.vercel.app/tools/search_exam \
@@ -138,15 +93,7 @@ curl -s -X POST https://radiology-call-agent.vercel.app/tools/search_exam \
   -d '{"query":"irm genou"}'
 ```
 
-Disponibilites :
-
-```bash
-curl -s -X POST https://radiology-call-agent.vercel.app/tools/get_available_slots \
-  -H "Content-Type: application/json" \
-  -d '{"visit_motive_id":"302","start_date":"2026-05-28","days":14}'
-```
-
-Le meme tool accepte aussi une date plus naturelle :
+Disponibilités :
 
 ```bash
 curl -s -X POST https://radiology-call-agent.vercel.app/tools/get_available_slots \
@@ -154,49 +101,59 @@ curl -s -X POST https://radiology-call-agent.vercel.app/tools/get_available_slot
   -d '{"visit_motive_id":"302","start_date":"demain","days":14}'
 ```
 
-Refus pour contre-indication :
+Contre-indication :
 
 ```bash
 curl -s -X POST https://radiology-call-agent.vercel.app/tools/create_appointment \
   -H "Content-Type: application/json" \
   -d '{
     "visit_motive_id":"302",
-    "slot":{
-      "start":"2026-05-28 09:30:00",
-      "duration_minutes":"20",
-      "practitioner_id":"3",
-      "location_id":"26",
-      "site_id":"5"
-    },
+    "start":"2026-05-28 12:00:00",
+    "duration_minutes":"20",
+    "practitioner_id":"3",
+    "location_id":"26",
     "patient_id":"0",
-    "patient":{
-      "first_name":"Test",
-      "last_name":"Blocked",
-      "birth_date":"19900101",
-      "gender":"1",
-      "phone":"0600000001"
-    },
+    "first_name":"Test",
+    "last_name":"Blocked",
+    "birth_date":"19900101",
+    "gender":"1",
+    "phone":"0600000001",
     "exam_category":"IRM",
-    "contraindications":{
-      "pacemaker":true,
-      "ferromagnetic_implant":false
-    }
+    "pacemaker":true,
+    "ferromagnetic_implant":false
   }'
 ```
 
-## 8. Limites a assumer
+Résultat attendu :
 
-Points a dire simplement si on te demande :
+```json
+{
+  "appointment_created": false,
+  "next_action": "transfer"
+}
+```
 
-- le matching d'examen est volontairement simple ;
-- Gemini n'est pas utilise dans les tools, car les tools doivent rester deterministes ;
-- la partie conversationnelle est portee par Rounded ;
-- les tools retournent aussi un champ `instructions` pour guider l'agent apres chaque appel API ;
-- en production, on ajouterait authentification, logs structures et monitoring ;
-- en production, on renforcerait l'identification patient avant toute action sensible.
+## 6. Bonus Rounded
 
-## 9. Conclusion
+Ouvrir :
 
-Phrase de conclusion possible :
+```txt
+docs/rounded-agent.md
+```
 
-> J'ai garde une architecture volontairement simple : un flux clair, cinq tools metier, un deploiement public, et des tests curl. L'objectif etait de montrer un agent branche sur Enovacom sans exposer toute l'API au modele vocal.
+À dire :
+
+- j'ai commencé à brancher les tools dans Rounded ;
+- le flow est simple : qualification → prise RDV ou transfert humain ;
+- j'ai ajouté un tool bonus `create_appointment_from_text` pour simplifier la configuration Rounded avec Gemini ;
+- je n'ai pas finalisé tout le flow vocal, mais la base technique est prête.
+
+## 7. Limites assumées
+
+- Annulation vocale complète : il manque un tool `list_patient_appointments`.
+- Matching d'examen : volontairement simple.
+- Production réelle : ajouter auth, logs, monitoring et règles RGPD plus strictes.
+
+## Conclusion
+
+> Le cœur du test est fonctionnel : flux documenté, tools codés, endpoints publics, création et annulation testées en recette.

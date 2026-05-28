@@ -1,147 +1,100 @@
-# Rounded radiology agent tools
+# Radiology call agent
 
-Petit service FastAPI pour le test technique Rounded.
+Tools publics pour le test technique Rounded : un agent vocal de centre de radiologie capable de prendre un rendez-vous et de transférer les cas hors cadre.
 
-L'objectif est de garder une implementation simple et explicable :
-
-- 5 tools metier ;
-- pas de wrapper complet de l'API Enovacom ;
-- configuration par variables d'environnement ;
-- tests possibles avec `curl`.
-
-## Flux d'appel
-
-Le flux est documente ici :
-
-- `docs/flux-appel.md`
-- `docs/site-choice.md`
-- `docs/demo-jour-j.md`
-- `docs/rounded-agent.md`
-
-## Tools
-
-Les tools sont documentes ici :
-
-- `docs/tools.md`
-
-Endpoints exposes :
-
-- `POST /tools/search_exam`
-- `POST /tools/find_patient`
-- `POST /tools/get_available_slots`
-- `POST /tools/create_appointment`
-- `POST /tools/create_appointment_from_text`
-- `POST /tools/cancel_appointment`
-
-## Configuration
-
-Copier `.env.example` vers `.env`, puis renseigner :
+URL de production :
 
 ```txt
-ENOVACOM_TOKEN=...
-ENOVACOM_SITE_ID=...
+https://radiology-call-agent.vercel.app
 ```
 
-Le token ne doit pas etre commit.
+## Ce que couvre le projet
 
-## Lancer en local
+1. **Flux d'appel** : le parcours patient est documenté avant le code.
+2. **Tools locaux** : les actions utiles sont exposées via une petite API FastAPI.
+3. **Déploiement** : les tools sont disponibles publiquement sur Vercel.
+4. **Bonus commencé** : une configuration Rounded est préparée, avec un tool simplifié par Gemini.
 
-```bash
-python -m venv .venv
-source .venv/bin/activate
-pip install -r requirements.txt
-python -m uvicorn app.main:app --reload
-```
-
-Le service est ensuite disponible sur :
+## Architecture
 
 ```txt
-http://localhost:8000
+app/
+  main.py       # endpoints FastAPI
+  enovacom.py   # appels au RIS Enovacom
+  rules.py      # contre-indications simples
+  gemini.py     # extraction texte -> JSON pour le bonus Rounded
+  config.py     # variables d'environnement
+docs/
+  flux-appel.md
+  site-choice.md
+  tools.md
+  demo-jour-j.md
+  rounded-agent.md
+scripts/
+  run_demo_tests.py
 ```
 
-## Tester rapidement
-
-```bash
-curl http://localhost:8000/health
-```
-
-```bash
-curl -X POST http://localhost:8000/tools/search_exam \
-  -H "Content-Type: application/json" \
-  -d '{"query": "irm genou"}'
-```
-
-```bash
-curl -X POST http://localhost:8000/tools/find_patient \
-  -H "Content-Type: application/json" \
-  -d '{"phone_number": "0612345678", "last_name": "Dupont"}'
-```
-
-```bash
-curl -X POST http://localhost:8000/tools/get_available_slots \
-  -H "Content-Type: application/json" \
-  -d '{"visit_motive_id": "302", "start_date": "2026-05-28", "days": 14}'
-```
-
-## Run-through de demo
-
-Pour tester l'API publique sans creer de rendez-vous :
-
-```bash
-python3 scripts/run_demo_tests.py
-```
-
-Pour tester le parcours complet en recette Enovacom, avec creation puis annulation immediate d'un rendez-vous de test :
-
-```bash
-python3 scripts/run_demo_tests.py --e2e
-```
-
-Le deroule de presentation est documente dans :
-
-```txt
-docs/demo-jour-j.md
-```
-
-## Deploiement
-
-Le projet est pret pour un deploiement Vercel via :
-
-```bash
-vercel --prod
-```
-
-Variables d'environnement a configurer sur Vercel :
+## Variables d'environnement
 
 ```txt
 ENOVACOM_BASE_URL=https://ris-recette-instance3.nd.care/AIR/eris_project/eris_php/WebServices/WS_rdv_externe.php
 ENOVACOM_TOKEN=...
 ENOVACOM_SITE_ID=5
+GEMINI_API_KEY=...
+GEMINI_MODEL=gemini-2.5-flash
 ```
 
-Une fois deploye, les memes endpoints sont disponibles sur l'URL publique :
+`GEMINI_API_KEY` sert uniquement au bonus Rounded.
+
+## Lancer en local
+
+```bash
+python3 -m venv .venv
+source .venv/bin/activate
+pip install -r requirements.txt
+python3 -m uvicorn app.main:app --reload
+```
+
+Health check :
+
+```bash
+curl http://localhost:8000/health
+```
+
+## Tests de démo
+
+Test public sans créer de rendez-vous :
+
+```bash
+python3 scripts/run_demo_tests.py
+```
+
+Test public complet avec création puis annulation immédiate d'un RDV de recette :
+
+```bash
+python3 scripts/run_demo_tests.py --e2e
+```
+
+## Endpoints
 
 ```txt
-https://radiology-call-agent.vercel.app/tools/search_exam
-https://radiology-call-agent.vercel.app/tools/get_available_slots
-https://radiology-call-agent.vercel.app/tools/create_appointment
-https://radiology-call-agent.vercel.app/tools/cancel_appointment
+GET  /health
+POST /tools/search_exam
+POST /tools/find_patient
+POST /tools/get_available_slots
+POST /tools/create_appointment
+POST /tools/create_appointment_from_text
+POST /tools/cancel_appointment
 ```
 
-Le projet contient aussi un `Dockerfile` si on choisit finalement une plateforme Docker-compatible comme Cloud Run, Render ou Railway.
+## Docs utiles
 
-## Choix d'architecture
+- `docs/flux-appel.md` : raisonnement du flux d'appel.
+- `docs/site-choice.md` : choix du site Enovacom.
+- `docs/tools.md` : liste courte des tools.
+- `docs/demo-jour-j.md` : déroulé de présentation.
+- `docs/rounded-agent.md` : bonus Rounded commencé.
 
-Structure volontairement courte :
+## Choix principal
 
-```txt
-app/
-  main.py       # endpoints FastAPI
-  enovacom.py   # appels HTTP vers Enovacom
-  rules.py      # contre-indications simples
-  config.py     # variables d'environnement
-docs/
-README.md
-```
-
-Cette structure suffit pour montrer le raisonnement, tester les tools et les deployer.
+Le projet reste volontairement simple : peu de fichiers, peu de tools, et des actions métier lisibles plutôt qu'un wrapper complet de l'API Enovacom.
