@@ -153,3 +153,72 @@ Regles :
         raise EnovacomError("Gemini returned an unexpected response") from error
 
     return extract_json_object(text)
+
+
+def match_exam_with_llm(
+    query: str,
+    candidates: list[dict[str, Any]],
+    clarification_answer: Optional[str] = None,
+) -> dict[str, Any]:
+    api_key = require_gemini_key()
+    query_string = urlencode({"key": api_key})
+    url = f"https://generativelanguage.googleapis.com/v1beta/models/{GEMINI_MODEL}:generateContent?{query_string}"
+
+    prompt = f"""
+Tu aides un agent vocal de radiologie a matcher une transcription patient avec un examen.
+La transcription peut contenir des fautes, de la phonetique ou des approximations.
+Exemples : "her aime genou" veut souvent dire "IRM genou"; "irme jnou" veut dire "IRM genou".
+
+Tu dois choisir uniquement parmi les examens candidats fournis.
+Tu n'as pas le droit d'inventer un examen.
+
+Demande initiale :
+{query}
+
+Reponse de clarification du patient, si disponible :
+{clarification_answer or ""}
+
+Examens candidats :
+{json.dumps(candidates, ensure_ascii=False)}
+
+Retourne uniquement ce JSON :
+{{
+  "status": "selected" | "needs_clarification" | "no_match",
+  "selected_visit_motive_id": "string",
+  "clarification_question": "string",
+  "shortlist_ids": ["string"]
+}}
+
+Regles :
+- Si un seul examen convient clairement, retourne status="selected".
+- Si plusieurs examens conviennent, retourne status="needs_clarification" avec une question courte.
+- Si les examens different par injection, demande "avec ou sans injection ?".
+- Si la zone anatomique est incertaine, demande quelle zone est concernee.
+- Si aucun candidat ne convient, retourne status="no_match".
+- selected_visit_motive_id et shortlist_ids doivent contenir uniquement des ids presents dans les candidats.
+""".strip()
+
+    body = {
+        "contents": [{"parts": [{"text": prompt}]}],
+        "generationConfig": {
+            "temperature": 0,
+            "response_mime_type": "application/json",
+        },
+    }
+
+    request = Request(
+        url,
+        data=json.dumps(body).encode("utf-8"),
+        headers={"Content-Type": "application/json"},
+        method="POST",
+    )
+
+    with urlopen(request, timeout=20) as response:
+        parsed = json.loads(response.read().decode("utf-8"))
+
+    try:
+        text = parsed["candidates"][0]["content"]["parts"][0]["text"]
+    except (KeyError, IndexError, TypeError) as error:
+        raise EnovacomError("Gemini returned an unexpected response") from error
+
+    return extract_json_object(text)

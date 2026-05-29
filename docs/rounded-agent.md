@@ -39,6 +39,8 @@ get_available_slots
 create_appointment_from_text
 ```
 
+`search_exam` utilise Gemini côté backend pour supporter les fautes de transcription, par exemple `her aime genou` → `IRM genou`.
+
 Après `search_exam` :
 
 ```txt

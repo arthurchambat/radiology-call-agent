@@ -4,7 +4,7 @@ Les tools restent proches du métier. Ils ne wrappent pas toute l'API Enovacom.
 
 ## `search_exam`
 
-Trouve un examen à partir d'une demande patient.
+Trouve un examen à partir d'une demande patient, même avec des fautes de transcription.
 
 ```txt
 POST /tools/search_exam
@@ -14,6 +14,15 @@ Entrée :
 
 ```json
 {"query": "irm genou"}
+```
+
+Exemples acceptés :
+
+```txt
+irm genou
+irme jnou
+her aime genou
+scanner abdomnial
 ```
 
 Si l'examen est ambigu, le tool retourne une question à poser au patient.
@@ -44,6 +53,8 @@ Autres statuts :
 needs_clarification
 no_match
 ```
+
+Le matching se fait avec Gemini sur les examens du site choisi uniquement.
 
 ## `find_patient`
 

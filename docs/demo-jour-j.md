@@ -93,6 +93,14 @@ curl -s -X POST https://radiology-call-agent.vercel.app/tools/search_exam \
   -d '{"query":"irm genou"}'
 ```
 
+Recherche avec faute de transcription :
+
+```bash
+curl -s -X POST https://radiology-call-agent.vercel.app/tools/search_exam \
+  -H "Content-Type: application/json" \
+  -d '{"query":"her aime genou"}'
+```
+
 Clarification examen :
 
 ```bash

@@ -9,7 +9,7 @@ from pydantic import BaseModel, Field
 
 from app.config import ENOVACOM_SITE_ID
 from app.enovacom import EnovacomError, client
-from app.gemini import resolve_exam_ambiguity, structure_booking_request
+from app.gemini import match_exam_with_llm, structure_booking_request
 from app.rules import has_contraindication
 
 app = FastAPI(title="Rounded radiology tools")
@@ -81,6 +81,12 @@ class CreateAppointmentFromTextRequest(BaseModel):
 
 def normalize(value: str) -> str:
     return re.sub(r"\s+", " ", value.lower()).strip()
+
+
+def normalize_search_text(value: str) -> str:
+    normalized = unicodedata.normalize("NFKD", value.lower())
+    without_accents = "".join(char for char in normalized if not unicodedata.combining(char))
+    return re.sub(r"[^a-z0-9]+", " ", without_accents).strip()
 
 
 def normalize_date_text(value: str) -> str:
@@ -262,23 +268,92 @@ def apply_exam_resolution(
     clarification_answer: Optional[str],
 ) -> dict[str, Any]:
     try:
-        resolution = resolve_exam_ambiguity(query, matches, clarification_answer)
+        resolution = match_exam_with_llm(query, matches, clarification_answer)
     except (EnovacomError, RuntimeError, json.JSONDecodeError):
         return clarification_exam_response(matches)
 
     status = resolution.get("status")
     selected_id = str(resolution.get("selected_visit_motive_id") or "")
+    raw_shortlist_ids = resolution.get("shortlist_ids") or []
+    shortlist_ids = {str(item) for item in raw_shortlist_ids}
+    shortlisted_matches = [match for match in matches if str(match.get("visit_motive_id")) in shortlist_ids]
+    visible_matches = shortlisted_matches or matches
 
     if status == "selected" and selected_id:
         for match in matches:
             if str(match.get("visit_motive_id")) == selected_id:
-                return selected_exam_response(match, matches)
+                return selected_exam_response(match, visible_matches)
 
     if status == "no_match":
         return no_match_exam_response()
 
     question = resolution.get("clarification_question") or "Pouvez-vous preciser l'examen souhaite ?"
-    return clarification_exam_response(matches, str(question))
+    return clarification_exam_response(visible_matches, str(question))
+
+
+def build_exam_candidates(config: dict[str, Any]) -> list[dict[str, Any]]:
+    allowed_ids = allowed_visit_motive_ids(config)
+    candidates: list[dict[str, Any]] = []
+
+    for motive in config.get("visit_motives", []):
+        motive_id = get_value(motive, "id", "visit_motive_id", "id_examen")
+        if allowed_ids is not None and str(motive_id) not in allowed_ids:
+            continue
+
+        name = get_value(motive, "name", "label", "libelle")
+        if not name:
+            continue
+
+        category_id = get_value(motive, "category_id", "id_category")
+        candidates.append(
+            {
+                "visit_motive_id": str(motive_id),
+                "name": str(name),
+                "category": get_category_name(config, category_id),
+            }
+        )
+
+    return candidates
+
+
+def score_exam_candidate(query: str, candidate: dict[str, Any]) -> int:
+    text = normalize_search_text(f"{candidate.get('name', '')} {candidate.get('category', '')}")
+    query_text = normalize_search_text(query)
+    query_words = [word for word in query_text.split() if len(word) >= 2]
+
+    score = 0
+    synonyms = {
+        "irm": ["irm", "imr", "irme", "her aime", "air aime", "mri"],
+        "scanner": ["scanner", "scaner", "scan", "tdm"],
+        "radio": ["radio", "radiographie", "rayon"],
+        "echo": ["echo", "echographie", "eco"],
+        "genou": ["genou", "jnou", "jenou"],
+        "abdomen": ["abdomen", "abdominal", "abdomnial", "ventre"],
+        "thorax": ["thorax", "poumon", "pulmonaire"],
+        "mammographie": ["mammo", "mammographie"],
+    }
+
+    for canonical, variants in synonyms.items():
+        candidate_has_concept = canonical in text or any(variant in text for variant in variants)
+        query_has_concept = canonical in query_text or any(variant in query_text for variant in variants)
+        if candidate_has_concept and query_has_concept:
+            score += 5
+
+    for word in query_words:
+        if word in text:
+            score += 2
+
+    if query_text and query_text in text:
+        score += 4
+
+    return score
+
+
+def shortlist_exam_candidates(query: str, candidates: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    scored = [(score_exam_candidate(query, candidate), candidate) for candidate in candidates]
+    positive = [(score, candidate) for score, candidate in scored if score > 0]
+    ranked = sorted(positive or scored, key=lambda item: item[0], reverse=True)
+    return [candidate for _, candidate in ranked[:30]]
 
 
 def summarize_slots(slots: list[dict[str, Any]]) -> str:
@@ -403,36 +478,10 @@ def health() -> dict[str, str]:
 @app.post("/tools/search_exam")
 def search_exam(payload: SearchExamRequest) -> dict[str, Any]:
     config = get_enovacom_config()
-    allowed_ids = allowed_visit_motive_ids(config)
-    query_words = normalize(payload.query).split()
-
-    matches: list[dict[str, Any]] = []
-    for motive in config.get("visit_motives", []):
-        motive_id = get_value(motive, "id", "visit_motive_id", "id_examen")
-        if allowed_ids is not None and str(motive_id) not in allowed_ids:
-            continue
-
-        name = get_value(motive, "name", "label", "libelle")
-        if not name:
-            continue
-
-        normalized_name = normalize(str(name))
-        if all(word in normalized_name for word in query_words):
-            category_id = get_value(motive, "category_id", "id_category")
-            matches.append(
-                {
-                    "visit_motive_id": str(motive_id),
-                    "name": name,
-                    "category": get_category_name(config, category_id),
-                }
-            )
-
-    selected_matches = matches[:5]
+    candidates = build_exam_candidates(config)
+    selected_matches = shortlist_exam_candidates(payload.query, candidates)
     if not selected_matches:
         return no_match_exam_response()
-
-    if len(selected_matches) == 1:
-        return selected_exam_response(selected_matches[0], selected_matches)
 
     return apply_exam_resolution(payload.query, selected_matches, payload.clarification_answer)
 
