@@ -42,6 +42,7 @@ ENOVACOM_TOKEN=...
 ENOVACOM_SITE_ID=5
 GEMINI_API_KEY=...
 GEMINI_MODEL=gemini-2.5-flash
+GEMINI_THINKING_BUDGET=0
 ```
 
 `GEMINI_API_KEY` sert uniquement au bonus Rounded.

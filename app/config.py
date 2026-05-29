@@ -27,6 +27,7 @@ ENOVACOM_TOKEN = os.getenv("ENOVACOM_TOKEN")
 ENOVACOM_SITE_ID = os.getenv("ENOVACOM_SITE_ID")
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
 GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-2.5-flash")
+GEMINI_THINKING_BUDGET = int(os.getenv("GEMINI_THINKING_BUDGET", "0"))
 
 
 def require_token() -> str:

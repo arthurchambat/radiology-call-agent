@@ -4,7 +4,7 @@ from urllib.error import HTTPError, URLError
 from urllib.parse import urlencode
 from urllib.request import Request, urlopen
 
-from app.config import GEMINI_MODEL, require_gemini_key
+from app.config import GEMINI_MODEL, GEMINI_THINKING_BUDGET, require_gemini_key
 from app.enovacom import EnovacomError
 
 
@@ -69,6 +69,9 @@ Demande :
         "generationConfig": {
             "temperature": 0,
             "response_mime_type": "application/json",
+            "thinkingConfig": {
+                "thinkingBudget": GEMINI_THINKING_BUDGET,
+            },
         },
     }
 
@@ -135,6 +138,9 @@ Regles :
         "generationConfig": {
             "temperature": 0,
             "response_mime_type": "application/json",
+            "thinkingConfig": {
+                "thinkingBudget": GEMINI_THINKING_BUDGET,
+            },
         },
     }
 

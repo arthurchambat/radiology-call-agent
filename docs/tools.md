@@ -135,6 +135,8 @@ Entrée :
 
 Ce tool utilise Gemini pour transformer le texte en champs structurés.
 
+`GEMINI_THINKING_BUDGET=0` désactive le raisonnement interne Gemini pour réduire la latence des calls API.
+
 ## `cancel_appointment`
 
 Annule un RDV si son identifiant est connu.
