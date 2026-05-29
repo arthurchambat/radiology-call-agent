@@ -39,6 +39,14 @@ get_available_slots
 create_appointment_from_text
 ```
 
+Après `search_exam` :
+
+```txt
+status=selected → utiliser selected_exam.visit_motive_id
+status=needs_clarification → poser clarification_question au patient, puis rappeler search_exam avec clarification_answer
+status=no_match → demander une précision simple ou transférer
+```
+
 Pourquoi `create_appointment_from_text` :
 
 - un seul paramètre Rounded : `request_text` ;

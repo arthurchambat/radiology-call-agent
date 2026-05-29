@@ -93,6 +93,14 @@ curl -s -X POST https://radiology-call-agent.vercel.app/tools/search_exam \
   -d '{"query":"irm genou"}'
 ```
 
+Clarification examen :
+
+```bash
+curl -s -X POST https://radiology-call-agent.vercel.app/tools/search_exam \
+  -H "Content-Type: application/json" \
+  -d '{"query":"irm genou","clarification_answer":"sans injection"}'
+```
+
 Disponibilités :
 
 ```bash

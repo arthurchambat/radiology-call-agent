@@ -37,7 +37,19 @@ def run_smoke_tests(base_url: str) -> dict:
     print_step("search_exam", exams)
     assert exams["matches"], "No exam found"
 
-    first_exam = exams["matches"][0]
+    selected_exam = exams.get("selected_exam")
+    if exams.get("status") == "needs_clarification":
+        clarified = post_json(
+            base_url,
+            "/tools/search_exam",
+            {"query": "irm genou", "clarification_answer": "sans injection"},
+        )
+        print_step("search_exam_clarified", clarified)
+        assert clarified["status"] == "selected"
+        selected_exam = clarified["selected_exam"]
+
+    assert selected_exam, "No selected exam found"
+    first_exam = selected_exam
     visit_motive_id = first_exam["visit_motive_id"]
 
     slots = post_json(

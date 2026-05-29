@@ -16,7 +16,34 @@ Entrée :
 {"query": "irm genou"}
 ```
 
-Sortie : liste d'examens avec `visit_motive_id`, nom et catégorie.
+Si l'examen est ambigu, le tool retourne une question à poser au patient.
+
+Deuxième appel possible :
+
+```json
+{"query": "irm genou", "clarification_answer": "sans injection"}
+```
+
+Sortie principale :
+
+```json
+{
+  "status": "selected",
+  "selected_exam": {
+    "visit_motive_id": "302",
+    "name": "IRM GENOU SANS IV",
+    "category": "IRM MEMBRE INF"
+  },
+  "matches": []
+}
+```
+
+Autres statuts :
+
+```txt
+needs_clarification
+no_match
+```
 
 ## `find_patient`
 

@@ -9,7 +9,7 @@ from pydantic import BaseModel, Field
 
 from app.config import ENOVACOM_SITE_ID
 from app.enovacom import EnovacomError, client
-from app.gemini import structure_booking_request
+from app.gemini import resolve_exam_ambiguity, structure_booking_request
 from app.rules import has_contraindication
 
 app = FastAPI(title="Rounded radiology tools")
@@ -17,6 +17,7 @@ app = FastAPI(title="Rounded radiology tools")
 
 class SearchExamRequest(BaseModel):
     query: str
+    clarification_answer: Optional[str] = None
 
 
 class FindPatientRequest(BaseModel):
@@ -226,6 +227,60 @@ def summarize_exam_matches(matches: list[dict[str, Any]]) -> str:
     return "Examens trouves : " + "; ".join(names) + ". Si plusieurs options sont possibles, demander une precision au patient."
 
 
+def selected_exam_response(selected_exam: dict[str, Any], matches: list[dict[str, Any]]) -> dict[str, Any]:
+    return {
+        "status": "selected",
+        "selected_exam": selected_exam,
+        "matches": matches,
+        "instructions": "Utiliser selected_exam.visit_motive_id pour chercher les creneaux avec get_available_slots.",
+    }
+
+
+def no_match_exam_response() -> dict[str, Any]:
+    return {
+        "status": "no_match",
+        "matches": [],
+        "instructions": "Demander une precision simple ou transferer a un humain.",
+    }
+
+
+def clarification_exam_response(
+    matches: list[dict[str, Any]],
+    question: str = "Pouvez-vous preciser l'examen souhaite ?",
+) -> dict[str, Any]:
+    return {
+        "status": "needs_clarification",
+        "clarification_question": question,
+        "matches": matches,
+        "instructions": "Poser clarification_question au patient, puis rappeler search_exam avec query et clarification_answer.",
+    }
+
+
+def apply_exam_resolution(
+    query: str,
+    matches: list[dict[str, Any]],
+    clarification_answer: Optional[str],
+) -> dict[str, Any]:
+    try:
+        resolution = resolve_exam_ambiguity(query, matches, clarification_answer)
+    except (EnovacomError, RuntimeError, json.JSONDecodeError):
+        return clarification_exam_response(matches)
+
+    status = resolution.get("status")
+    selected_id = str(resolution.get("selected_visit_motive_id") or "")
+
+    if status == "selected" and selected_id:
+        for match in matches:
+            if str(match.get("visit_motive_id")) == selected_id:
+                return selected_exam_response(match, matches)
+
+    if status == "no_match":
+        return no_match_exam_response()
+
+    question = resolution.get("clarification_question") or "Pouvez-vous preciser l'examen souhaite ?"
+    return clarification_exam_response(matches, str(question))
+
+
 def summarize_slots(slots: list[dict[str, Any]]) -> str:
     if not slots:
         return "Aucun creneau disponible sur cette periode. Proposer une autre periode ou transferer a un humain."
@@ -373,10 +428,13 @@ def search_exam(payload: SearchExamRequest) -> dict[str, Any]:
             )
 
     selected_matches = matches[:5]
-    return {
-        "matches": selected_matches,
-        "instructions": summarize_exam_matches(selected_matches),
-    }
+    if not selected_matches:
+        return no_match_exam_response()
+
+    if len(selected_matches) == 1:
+        return selected_exam_response(selected_matches[0], selected_matches)
+
+    return apply_exam_resolution(payload.query, selected_matches, payload.clarification_answer)
 
 
 @app.post("/tools/find_patient")
