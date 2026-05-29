@@ -225,6 +225,9 @@ Definitions :
         "generationConfig": {
             "temperature": 0,
             "response_mime_type": "application/json",
+            "thinkingConfig": {
+                "thinkingBudget": GEMINI_THINKING_BUDGET,
+            },
         },
     }
 
