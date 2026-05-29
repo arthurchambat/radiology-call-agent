@@ -1,5 +1,6 @@
 import json
 from typing import Any, Optional
+from urllib.error import HTTPError, URLError
 from urllib.parse import urlencode
 from urllib.request import Request, urlopen
 
@@ -163,23 +164,39 @@ def match_exam_with_llm(
     api_key = require_gemini_key()
     query_string = urlencode({"key": api_key})
     url = f"https://generativelanguage.googleapis.com/v1beta/models/{GEMINI_MODEL}:generateContent?{query_string}"
+    candidates_text = "\n".join(
+        f"{item.get('visit_motive_id')} | {item.get('name')} | {item.get('category') or ''}"
+        for item in candidates
+    )
 
     prompt = f"""
-Tu aides un agent vocal de radiologie a matcher une transcription patient avec un examen.
-La transcription peut contenir des fautes, de la phonetique ou des approximations.
-Exemples : "her aime genou" veut souvent dire "IRM genou"; "irme jnou" veut dire "IRM genou".
+Tu es le moteur de recherche d'examens pour un agent vocal de radiologie.
+Ton role est de comprendre une transcription telephonique potentiellement mauvaise, puis de retrouver l'examen correspondant dans la liste fournie.
 
-Tu dois choisir uniquement parmi les examens candidats fournis.
-Tu n'as pas le droit d'inventer un examen.
+Contexte realiste :
+- Le patient parle au telephone.
+- La transcription peut etre approximative, phonetique ou pleine de fautes.
+- Exemples :
+  - "her aime genou", "air aime genou", "irme jnou" => probablement "IRM genou"
+  - "scaner abdominal", "scanner abdomnial" => probablement "scanner abdominal"
+  - "radio poumon" => probablement "radio thorax"
+  - "mamo", "mamographie" => probablement "mammographie"
 
-Demande initiale :
+Contraintes strictes :
+- Tu dois choisir uniquement parmi les examens candidats fournis.
+- Tu n'as pas le droit d'inventer un examen.
+- Si plusieurs examens restent plausibles, tu dois demander une clarification courte.
+- Si l'information "avec injection" / "sans injection" manque et que les deux existent, demande seulement "Avec ou sans injection ?".
+- Si la zone anatomique est incertaine, demande seulement quelle zone est concernee.
+
+Demande initiale du patient :
 {query}
 
 Reponse de clarification du patient, si disponible :
 {clarification_answer or ""}
 
-Examens candidats :
-{json.dumps(candidates, ensure_ascii=False)}
+Examens candidats du site choisi, format "id | nom | categorie" :
+{candidates_text}
 
 Retourne uniquement ce JSON :
 {{
@@ -189,13 +206,12 @@ Retourne uniquement ce JSON :
   "shortlist_ids": ["string"]
 }}
 
-Regles :
-- Si un seul examen convient clairement, retourne status="selected".
-- Si plusieurs examens conviennent, retourne status="needs_clarification" avec une question courte.
-- Si les examens different par injection, demande "avec ou sans injection ?".
-- Si la zone anatomique est incertaine, demande quelle zone est concernee.
-- Si aucun candidat ne convient, retourne status="no_match".
-- selected_visit_motive_id et shortlist_ids doivent contenir uniquement des ids presents dans les candidats.
+Definitions :
+- status="selected" si un seul examen convient clairement.
+- status="needs_clarification" si plusieurs examens sont plausibles. Dans ce cas, clarification_question doit contenir une seule question, maximum 20 mots.
+- status="no_match" si aucun examen candidat ne correspond.
+- selected_visit_motive_id doit etre vide sauf si status="selected".
+- shortlist_ids doit contenir les ids des examens plausibles, meme si tu demandes une clarification.
 """.strip()
 
     body = {
@@ -213,8 +229,14 @@ Regles :
         method="POST",
     )
 
-    with urlopen(request, timeout=20) as response:
-        parsed = json.loads(response.read().decode("utf-8"))
+    try:
+        with urlopen(request, timeout=30) as response:
+            parsed = json.loads(response.read().decode("utf-8"))
+    except HTTPError as error:
+        details = error.read().decode("utf-8", errors="replace")
+        raise EnovacomError(f"Gemini HTTP error: {error.code} - {details}") from error
+    except (URLError, TimeoutError) as error:
+        raise EnovacomError(f"Gemini connection error: {error}") from error
 
     try:
         text = parsed["candidates"][0]["content"]["parts"][0]["text"]

@@ -83,12 +83,6 @@ def normalize(value: str) -> str:
     return re.sub(r"\s+", " ", value.lower()).strip()
 
 
-def normalize_search_text(value: str) -> str:
-    normalized = unicodedata.normalize("NFKD", value.lower())
-    without_accents = "".join(char for char in normalized if not unicodedata.combining(char))
-    return re.sub(r"[^a-z0-9]+", " ", without_accents).strip()
-
-
 def normalize_date_text(value: str) -> str:
     normalized = unicodedata.normalize("NFKD", value.lower())
     without_accents = "".join(char for char in normalized if not unicodedata.combining(char))
@@ -316,46 +310,6 @@ def build_exam_candidates(config: dict[str, Any]) -> list[dict[str, Any]]:
     return candidates
 
 
-def score_exam_candidate(query: str, candidate: dict[str, Any]) -> int:
-    text = normalize_search_text(f"{candidate.get('name', '')} {candidate.get('category', '')}")
-    query_text = normalize_search_text(query)
-    query_words = [word for word in query_text.split() if len(word) >= 2]
-
-    score = 0
-    synonyms = {
-        "irm": ["irm", "imr", "irme", "her aime", "air aime", "mri"],
-        "scanner": ["scanner", "scaner", "scan", "tdm"],
-        "radio": ["radio", "radiographie", "rayon"],
-        "echo": ["echo", "echographie", "eco"],
-        "genou": ["genou", "jnou", "jenou"],
-        "abdomen": ["abdomen", "abdominal", "abdomnial", "ventre"],
-        "thorax": ["thorax", "poumon", "pulmonaire"],
-        "mammographie": ["mammo", "mammographie"],
-    }
-
-    for canonical, variants in synonyms.items():
-        candidate_has_concept = canonical in text or any(variant in text for variant in variants)
-        query_has_concept = canonical in query_text or any(variant in query_text for variant in variants)
-        if candidate_has_concept and query_has_concept:
-            score += 5
-
-    for word in query_words:
-        if word in text:
-            score += 2
-
-    if query_text and query_text in text:
-        score += 4
-
-    return score
-
-
-def shortlist_exam_candidates(query: str, candidates: list[dict[str, Any]]) -> list[dict[str, Any]]:
-    scored = [(score_exam_candidate(query, candidate), candidate) for candidate in candidates]
-    positive = [(score, candidate) for score, candidate in scored if score > 0]
-    ranked = sorted(positive or scored, key=lambda item: item[0], reverse=True)
-    return [candidate for _, candidate in ranked[:30]]
-
-
 def summarize_slots(slots: list[dict[str, Any]]) -> str:
     if not slots:
         return "Aucun creneau disponible sur cette periode. Proposer une autre periode ou transferer a un humain."
@@ -479,11 +433,10 @@ def health() -> dict[str, str]:
 def search_exam(payload: SearchExamRequest) -> dict[str, Any]:
     config = get_enovacom_config()
     candidates = build_exam_candidates(config)
-    selected_matches = shortlist_exam_candidates(payload.query, candidates)
-    if not selected_matches:
+    if not candidates:
         return no_match_exam_response()
 
-    return apply_exam_resolution(payload.query, selected_matches, payload.clarification_answer)
+    return apply_exam_resolution(payload.query, candidates, payload.clarification_answer)
 
 
 @app.post("/tools/find_patient")
