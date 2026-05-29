@@ -256,6 +256,66 @@ def clarification_exam_response(
     }
 
 
+def has_injection_alternatives(matches: list[dict[str, Any]]) -> bool:
+    names = " ".join(str(match.get("name", "")).lower() for match in matches)
+    return ("sans iv" in names or "ss injection" in names or "sans injection" in names) and (
+        "avec iv" in names or "avec injection" in names
+    )
+
+
+def related_exam_matches(selected_match: dict[str, Any], matches: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    ignored_tokens = {
+        "avec",
+        "sans",
+        "injection",
+        "injecte",
+        "injecté",
+        "non",
+        "ss",
+        "iv",
+        "du",
+        "de",
+        "des",
+        "les",
+        "aux",
+        "pour",
+    }
+    selected_text = normalize(str(selected_match.get("name", "")))
+    core_tokens = [
+        token
+        for token in re.findall(r"[a-z0-9]+", selected_text)
+        if len(token) >= 3 and token not in ignored_tokens
+    ]
+    if not core_tokens:
+        return [selected_match]
+
+    related = []
+    for match in matches:
+        candidate_text = normalize(str(match.get("name", "")))
+        if all(token in candidate_text for token in core_tokens):
+            related.append(match)
+
+    return related or [selected_match]
+
+
+def mentions_injection_choice(*values: Optional[str]) -> bool:
+    text = normalize(" ".join(value or "" for value in values))
+    return any(
+        marker in text
+        for marker in [
+            "sans injection",
+            "avec injection",
+            "sans iv",
+            "avec iv",
+            "non injecte",
+            "non injecté",
+            "injecte",
+            "injecté",
+            "injection",
+        ]
+    )
+
+
 def apply_exam_resolution(
     query: str,
     matches: list[dict[str, Any]],
@@ -276,6 +336,12 @@ def apply_exam_resolution(
     if status == "selected" and selected_id:
         for match in matches:
             if str(match.get("visit_motive_id")) == selected_id:
+                related_matches = related_exam_matches(match, matches)
+                if has_injection_alternatives(related_matches) and not mentions_injection_choice(
+                    query,
+                    clarification_answer,
+                ):
+                    return clarification_exam_response(related_matches, "Avec ou sans injection ?")
                 return selected_exam_response(match, visible_matches)
 
     if status == "no_match":
